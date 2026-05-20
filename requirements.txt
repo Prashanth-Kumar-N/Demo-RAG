@@ -1,0 +1,9 @@
+
+langchain
+faiss-cpu
+pymupdf
+openai
+tiktoken
+spacy
+
+
