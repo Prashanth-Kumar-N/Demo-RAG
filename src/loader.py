@@ -1,20 +1,24 @@
 import langchain
 from langchain_community.document_loaders import PyMuPDFLoader
-
-print("langchain", langchain.__version__)
-
-files = [
-    "./data/3_JLG_Boom_lifts_Catalog.pdf",
-]
+from src.constants import success, error
 
 
-docs = []
-for file in files:
-    loader = PyMuPDFLoader(file)
-    pdf = loader.load()
-    docs = pdf
-    for doc in docs:
-        doc.metadata["name"] = file.split("/")[-1] 
+def loadDocuments(filesList: list[str]) -> dict:
+    docsList = {}
+    status = success
+    message = 'Documents loaded successfully'
+    try:
+        for file in filesList:
+            loader = PyMuPDFLoader(file)
+            docs = loader.load()
+            file_name = file.split("/")[-1]
+            for doc in docs:
+                doc.metadata["file_name"] = file_name 
+            docsList[file_name] = docs
+    except Exception as e:
+        print(f"Error loading documents: {e}")
+        status = error
+        message = str(e)
+        docsList = None
 
-print(len(docs))
-print(docs[1].page_content);
+    return {"status": status, "message": message, "docs": docsList}
