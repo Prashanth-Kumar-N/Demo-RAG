@@ -1,9 +1,11 @@
 
 langchain
+langchain-community
 faiss-cpu
 pymupdf
 openai
 tiktoken
 spacy
+unstructured
 
 
