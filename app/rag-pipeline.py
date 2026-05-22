@@ -6,35 +6,28 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.constants import success, error
+from src.ingestion import ingest
 
-def loadAllDocs():
-    from src.loader import loadDocuments
-
-    files = [
-        "./data/3_JLG_Boom_lifts_Catalog.pdf",
-    ]
-
-    response = loadDocuments(files)
-    return response
-
-
-def splitDocs(docs):
-    from src.splitter import split_documents
-    response = split_documents(docs)
-    return response
+def get_query_embeddings():
+    print("here")
 
 def main():
     # load documents
-    response = loadAllDocs()
+    files = [
+        "./data/2_Striker_4x4_Oshkosh_Airport_Products.pdf",
+        "./data/2_Striker_6x6_Oshkosh_Airport_Products.pdf",
+        "./data/2_Striker_8x8_Oshkosh_Airport_Products.pdf",
+        "./data/3_JLG_Boom_lifts_Catalog.pdf",
+        "./data/4_Hydraulic_components_Catalog.pdf",
+        "./data/5_Racks_wareshouse_catalog.pdf",
+        "./data/6_JLG_12SP_Operational_Safety_manual.pdf",
+        "./data/7_jaco-quality-system-manual.pdf",
+    ]
+    response = ingest(files)
     if response["status"] == success:
-        print(response["docs"]["3_JLG_Boom_lifts_Catalog.pdf"][0])
-        split_response = splitDocs(response["docs"]["3_JLG_Boom_lifts_Catalog.pdf"])
-        if split_response["status"] == success:
-            print(f"Split {len(split_response['chunks'])} chunks")
-        else:
-            print("Error splitting documents")
+        print(response["message"])
     else:
-        print("Error loading")
+        print("Ingestion failed: ", response["message"])
 
 
 

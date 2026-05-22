@@ -1,6 +1,6 @@
 # src/splitter.py
 
-from langchain_community.document_loaders import Document
+from llama_index.core.schema import TextNode
 from src.constants import success, error
 
 
@@ -37,7 +37,7 @@ def split_text_with_headings(text, chunk_size=1200):
     """
     lines = text.split('\n')
     chunks = []
-    current_chunk = []
+    current_chunk = {"heading": "", "content": []}
     current_size = 0
     
     i = 0
@@ -50,58 +50,61 @@ def split_text_with_headings(text, chunk_size=1200):
             # If current chunk is not empty and adding heading would exceed limit,
             # save current chunk first
             if current_chunk and current_size + line_size > chunk_size:
-                chunks.append('\n'.join(current_chunk))
-                current_chunk = [line]
+                chunks.append({'heading': current_chunk["heading"], 'content': "\n".join(current_chunk["content"])})
+                current_chunk = {"heading": line, "content": []}
                 current_size = line_size
             else:
-                current_chunk.append(line)
+                current_chunk["content"].append(line)
                 current_size += line_size
         else:
             # Regular content line
             if current_size + line_size > chunk_size:
                 if current_chunk:
-                    chunks.append('\n'.join(current_chunk))
-                current_chunk = [line]
+                    chunks.append({'heading': current_chunk["heading"], 'content': "\n".join(current_chunk["content"])})
+                current_chunk = {"heading": "", "content": [line]}
                 current_size = line_size
             else:
-                current_chunk.append(line)
+                current_chunk["content"].append(line)
                 current_size += line_size
         
         i += 1
     
+
     # Add remaining chunk
-    if current_chunk:
-        chunks.append('\n'.join(current_chunk))
+    if current_chunk["content"]:
+        chunks.append({'heading': current_chunk["heading"], 'content': "\n".join(current_chunk["content"])})
+
     
-    # Secondary split: if any chunk exceeds 1200, split using sentences/words/chars
     final_chunks = []
     for chunk in chunks:
-        if len(chunk) > chunk_size:
+        if len(chunk["content"]) > chunk_size:
             final_chunks.extend(_split_large_chunk(chunk, chunk_size))
+            final_chunks[-1]["content"] = final_chunks[-1]["content"].rstrip()  # Remove trailing newline if exists
         else:
             final_chunks.append(chunk)
     
     return final_chunks
 
 
-def _split_large_chunk(text, chunk_size=1200):
+def _split_large_chunk(chunk, chunk_size=1200):
     """
     Split a large chunk using sentence (". "), word (" "), then character separators.
     """
+    text = chunk["content"] if isinstance(chunk["content"], str) else "\n".join(chunk["content"])
     # Try sentence split first
     if ". " in text:
         parts = text.split(". ")
-        return _group_parts_by_size(parts, ". ", chunk_size)
+        return [{"heading": chunk["heading"], "content": part} for part in _group_parts_by_size(parts, ". ", chunk_size)]
     
     # Try word split
     if " " in text:
         parts = text.split(" ")
-        return _group_parts_by_size(parts, " ", chunk_size)
+        return [{"heading": chunk["heading"], "content": part} for part in _group_parts_by_size(parts, " ", chunk_size)]
     
     # Character split (fallback)
     chunks = []
     for i in range(0, len(text), chunk_size):
-        chunks.append(text[i:i+chunk_size])
+        chunks.append({"heading": chunk["heading"], "content": text[i:i+chunk_size]})
     return chunks
 
 
@@ -134,7 +137,7 @@ def _group_parts_by_size(parts, separator, chunk_size):
     return chunks
 
 
-def split_documents(docs, chunk_size=1000, chunk_overlap=150):
+def split_documents(docs, chunk_size=500, chunk_overlap=100):
     """
     Split documents while preserving headings with their content.
     
@@ -152,12 +155,14 @@ def split_documents(docs, chunk_size=1000, chunk_overlap=150):
     message = 'Documents split successfully'
     try:
         for doc in docs:
-            text = doc.page_content
+            text = doc["page_content"]
             chunks = split_text_with_headings(text, chunk_size=chunk_size)  # from previous implementation
+            
             for i, chunk in enumerate(chunks):
                 base_chunks.append((doc, chunk, i, len(chunks)))
 
         # Apply overlap by prefixing each chunk (except first) with suffix of previous chunk
+        
         if chunk_overlap and chunk_overlap > 0:
             overlapped = []
             for idx, (doc, chunk, i, total) in enumerate(base_chunks):
@@ -165,20 +170,25 @@ def split_documents(docs, chunk_size=1000, chunk_overlap=150):
                     overlapped.append((doc, chunk, i, total))
                     continue
                 _, prev_chunk, _, _ = base_chunks[idx - 1]
-                overlap_text = prev_chunk[-chunk_overlap:] if len(prev_chunk) >= chunk_overlap else prev_chunk
-                new_chunk = overlap_text + chunk
-                overlapped.append((doc, new_chunk, i, total))
+                overlap_text = prev_chunk["content"][-chunk_overlap:] if len(prev_chunk["content"]) >= chunk_overlap else prev_chunk["content"]
+                #print(f"Applying overlap of {len(overlap_text)} chars to chunk {i} of {total} - {chunk['content']}")
+                new_chunk = overlap_text + chunk["content"]
+                #print(f"Chunk {i} of {total} has size {len(chunk['content'])} chars, after overlap: {len(new_chunk)} chars")
+                overlapped.append((doc, {"heading": chunk["heading"], "content": new_chunk}, i, total))
             base_chunks = overlapped
-
-        # Convert into LangChain Document objects, preserving original metadata
+        
+        # Convert into llama TextNodes, preserving original metadata
         out_docs = []
         for doc, chunk, i, total in base_chunks:
-            if not chunk.strip():
+            if not chunk["content"].strip():
                 continue
-            metadata = dict(doc.metadata or {})
-            metadata.update({"chunk_index": i, "chunk_total": total})
-            out_docs.append(Document(page_content=chunk, metadata=metadata))
-
+            metadata = dict(doc.get("metadata", {}) if isinstance(doc, dict) else (getattr(doc, "metadata", {}) or {}))
+            metadata.update({"chunk_index": i, "chunk_total": total, "heading": chunk["heading"]})
+            
+            if i == 3:
+                print(f"chunk[\"metadata\"]: {metadata.get('chunk_index', 'N/A')} ---- page_number {metadata.get('page_number', 'N/A')}, chunk[\"content\"]: {chunk['content']}")
+            out_docs.append(TextNode(text=chunk["content"], metadata=metadata))
+        
         return {"status": success, "message": message, "chunks": out_docs}     
     except Exception as e:
         print(f"Error splitting documents: {e}")
