@@ -1,4 +1,7 @@
 
+# llamaIndex supports all these parsing techniques
+#  https://www.lancedb.com/blog/chunking-techniques-with-langchain-and-llamaindex
+
 import sys
 from pathlib import Path
 
@@ -6,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.constants import success, error
+from src.vectorstore import check_and_return_index, build_index
 
 def loadAllDocs(files):
     from src.loader import loadDocuments
@@ -40,47 +44,53 @@ def getEmbeddingModel():
     return model_info
 
 
-def get_vector_index(nodes, model_info):
-    from src.vectorstore import check_and_return_index
-    index = check_and_return_index(nodes, model_info)
+def get_vector_index(nodes, model_info):    
+    index = build_index(nodes, model_info)
     return index
 
 
 def ingest(files):
-    # load documents
-    response = loadAllDocs(files)   
 
-    if response["status"] == success:
-        # Split and chunk documents
-        split_response = splitDocs(response["docs"])
-        
-        if split_response["status"] == success:
-            print("Documents split successfully, Total Nodes created --->", len(split_response["chunks"]))
-
-            # Check embedding model and dimension
-            model_info = getEmbeddingModel()
-            print(f"Using embedding model: {model_info[1]} with dimension {model_info[2]}")
-
-            # Create vector index and store
-            try:
-                 index = get_vector_index(split_response["chunks"], model_info)
-                 
-                 # Testing if ingested properly by printing out some nodes and their metadata
-                 docstore = index.docstore
-                 print(f"Total documents in docstore: {len(index.storage_context.docstore.docs)}")
-                #  for node_id, node in docstore.docs.items():
-                #     print(node.metadata)
-                 return {"status": success, "message": "Ingestion completed successfully", "index": index}
-
-            except Exception as e:
-                 print("Error with index", e)
-                 return {"status": error, "message": f"Error creating/loading index: {str(e)}", "index": None}
-        else:
-            print("Error splitting documents")
-            return {"status": error, "message": "Error splitting documents", "index": None}
+    model_info = getEmbeddingModel()
+    index_info = check_and_return_index(model_info)
+    if index_info["present"]:
+        print("Index already exists in storage, loading index...")
+        return {"status": success, "message": "Index loaded from storage", "index": index_info["index"]}
     else:
-        print("Error loading")
-        return {"status": error, "message": "Error loading documents", "index": None}
+        print("No existing index found in storage, creating new index...")
+        # load documents
+        response = loadAllDocs(files)   
+
+        if response["status"] == success:
+            # Split and chunk documents
+            split_response = splitDocs(response["docs"])
+            
+            if split_response["status"] == success:
+                print("Documents split successfully, Total Nodes created --->", len(split_response["chunks"]))
+
+                # Check embedding model and dimension
+                print(f"Using embedding model: {model_info[1]} with dimension {model_info[2]}")
+
+                # Create vector index and store
+                try:
+                    index = get_vector_index(split_response["chunks"], model_info)
+                    
+                    # Testing if ingested properly by printing out some nodes and their metadata
+                    docstore = index.docstore
+                    print(f"Total documents in docstore: {len(index.storage_context.docstore.docs)}")
+                    #  for node_id, node in docstore.docs.items():
+                    #     print(node.metadata)
+                    return {"status": success, "message": "Ingestion completed successfully", "index": index}
+
+                except Exception as e:
+                    print("Error with index", e)
+                    return {"status": error, "message": f"Error creating/loading index: {str(e)}", "index": None}
+            else:
+                print("Error splitting documents")
+                return {"status": error, "message": "Error splitting documents", "index": None}
+        else:
+            print("Error loading")
+            return {"status": error, "message": "Error loading documents", "index": None}
 
 
 

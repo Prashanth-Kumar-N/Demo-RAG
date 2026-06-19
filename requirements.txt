@@ -5,12 +5,18 @@ llama-index-core
 llama-index-embeddings-huggingface
 llama-index-embeddings-openai
 llama-index-vector-stores-faiss
+llama-index-llms-huggingface
+llama-index-llms-groq
 sentence-transformers
+transformers
+accelerate
+torch
 faiss-cpu
 pymupdf
 openai
 tiktoken
 spacy
 unstructured
-
+pandas
+python-dotenv
 

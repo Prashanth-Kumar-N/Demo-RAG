@@ -6,7 +6,7 @@ from llama_index.vector_stores.faiss import FaissVectorStore
 import faiss
 
 
-persist_dir = "./faiss_index"
+persist_dir = "../faiss_index"
 
 def create_and_store_vectorStore_index(nodes, model_info):
     embed_model, model, dimension = model_info
@@ -23,7 +23,6 @@ def create_and_store_vectorStore_index(nodes, model_info):
         # For other models, we can use L2 distance, but we need to normalize vectors first
         # This is a simplified approach; in practice, you might want to normalize the vectors before adding them to the index
         # For demonstration, we'll use L2 distance without normalization
-        # sentence-transformers/multi-qa-MiniLM-L6-cos-v1 is not normalized, so we use L2 distance
         faiss_index = faiss.IndexFlatL2(dimension)
 
     vector_store = FaissVectorStore(faiss_index = faiss_index)
@@ -33,12 +32,12 @@ def create_and_store_vectorStore_index(nodes, model_info):
         vector_store=vector_store
     )
 
-    # Persist the index to disk (optional, but recommended for large datasets)
+    # Persist the index to disk
     index.storage_context.persist(persist_dir=persist_dir)
     return index
 
 
-def check_and_return_index(nodes, model_info):
+def build_index(nodes, model_info):
     embed_model, model, dimension  = model_info
     #check if index exists in storage, if yes, load and return, if no, create and store, then return
     
@@ -50,4 +49,12 @@ def check_and_return_index(nodes, model_info):
         return load_index_from_storage(storage_context = storage_context, embed_model= embed_model)
     else:
         return create_and_store_vectorStore_index(nodes, model_info)
-        
+
+
+def check_and_return_index(model_info):
+     if os.path.exists(persist_dir) and os.listdir(persist_dir):
+        storage_context = StorageContext.from_defaults(persist_dir=persist_dir)
+        return {"present": True, "index": load_index_from_storage(storage_context = storage_context, embed_model= model_info[0])}
+     else:
+        return {"present": False, "index": None}
+     
