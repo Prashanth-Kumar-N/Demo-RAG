@@ -255,10 +255,7 @@ def _smart_split_with_structure(text: str, chunk_size: int = 750, overlap_percen
     # Now apply chunking with overlap
     chunks = _apply_chunking_with_structure(
         structure, chunk_size=chunk_size, overlap_percent=overlap_percent
-    )
-    
-
-
+    ) 
 
     return chunks
 

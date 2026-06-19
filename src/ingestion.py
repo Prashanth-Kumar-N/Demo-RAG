@@ -80,7 +80,7 @@ def ingest(files):
                     print(f"Total documents in docstore: {len(index.storage_context.docstore.docs)}")
                     #  for node_id, node in docstore.docs.items():
                     #     print(node.metadata)
-                    return {"status": success, "message": "Ingestion completed successfully", "index": index}
+                    return {"status": success, "message": "Ingestion completed successfully, index created", "index": index}
 
                 except Exception as e:
                     print("Error with index", e)

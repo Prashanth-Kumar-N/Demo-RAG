@@ -28,7 +28,6 @@ def main():
     response = ingest(files)
     if response["status"] == success:
         print(response["message"])
-
         index = response["index"]
         response = generate_response(index=index, query="What is the CAB VISIBILITY of Striker 4x4?", top_k=5, retrieval_only=False, files=files)
         print("Response:")

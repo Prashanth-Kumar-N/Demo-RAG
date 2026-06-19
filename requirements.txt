@@ -20,3 +20,7 @@ unstructured
 pandas
 python-dotenv
 
+fastapi
+uvicorn
+logging
+

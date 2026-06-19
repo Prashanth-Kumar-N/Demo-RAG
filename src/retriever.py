@@ -82,7 +82,7 @@ def classic_rag(index, query: str, top_k: int = 5, files=None):
             "response": src.text[:700]
         })
     
-    print(pd.DataFrame(rows))
+    return {"response_text": response, "source_nodes": rows}
  
 
 def get_matching_files(query, files):
