@@ -7,6 +7,7 @@ import pandas as pd
 
 from src.load_models import load_llm
 
+import time
 
 def retrieve_only(index, query: str, top_k: int = 5):
     """
@@ -31,7 +32,7 @@ def retrieve_only(index, query: str, top_k: int = 5):
             "response": node.text
         })
 
-    return {"nodes": nodes, "table": pd.DataFrame(rows) }
+    return {"nodes": nodes, "rows": rows}
  
 
 def classic_rag(index, query: str, top_k: int = 5, files=None):
@@ -42,7 +43,6 @@ def classic_rag(index, query: str, top_k: int = 5, files=None):
     matching_files = get_matching_files(query, files)
     llm = load_llm()
     nodes = retrieve_only(index=index, query=query, top_k=top_k * 2)["nodes"]
-
 
     # Filter
     if matching_files and len(matching_files) > 0:
@@ -61,17 +61,17 @@ def classic_rag(index, query: str, top_k: int = 5, files=None):
     #   * structure_refine: Similar to refine but enforces structured output (JSON-like) while iteratively
     #                          improving the answer
 
-    
     response_synthesizer = get_response_synthesizer(response_mode=ResponseMode.COMPACT, llm=llm)
     response = response_synthesizer.synthesize(nodes=filtered_nodes, query= query)
-
+    
     # Synthesized Response
     print(f"\nQUESTION: {query}")
     print("\nANSWER:")
-    print(response)
+
+    response_text = extract_response_text(response)
+    print(response_text)
 
     # Retrieved Chunks Data
-    print("\nSOURCES:")
     rows = []
     for i, src in enumerate(response.source_nodes, start=1):
         # print("=" * 90)
@@ -81,8 +81,20 @@ def classic_rag(index, query: str, top_k: int = 5, files=None):
             "metadata": src.metadata,
             "response": src.text[:700]
         })
+    print("\nSOURCES:")
+    print(pd.DataFrame(rows, columns=["rank", "score", "metadata", "response"]))
     
-    return {"response_text": response, "source_nodes": rows}
+    return {"response_text": response_text, "source_nodes": rows}
+ 
+
+def extract_response_text(response):
+    if hasattr(response, "response"):
+        return response.response
+    if hasattr(response, "get_formatted_output"):
+        return response.get_formatted_output()
+    if hasattr(response, "response_text"):
+        return response.response_text
+    return str(response)
  
 
 def get_matching_files(query, files):

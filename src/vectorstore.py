@@ -7,6 +7,25 @@ import faiss
 
 
 persist_dir = "../faiss_index"
+_cached_index = None
+
+
+def get_cached_index():
+    global _cached_index
+    return _cached_index
+
+
+def set_cached_index(index):
+    global _cached_index
+    _cached_index = index
+
+
+def load_index_from_storage_if_exists(model_info):
+    if os.path.exists(persist_dir) and os.listdir(persist_dir):
+        storage_context = StorageContext.from_defaults(persist_dir=persist_dir)
+        return load_index_from_storage(storage_context=storage_context, embed_model=model_info[0])
+    return None
+
 
 def create_and_store_vectorStore_index(nodes, model_info):
     embed_model, model, dimension = model_info
@@ -45,16 +64,23 @@ def build_index(nodes, model_info):
             os.makedirs(persist_dir)
 
     if os.listdir(persist_dir):
-        storage_context = StorageContext.from_defaults(persist_dir=persist_dir)
-        return load_index_from_storage(storage_context = storage_context, embed_model= embed_model)
+        index = load_index_from_storage_if_exists(model_info)
     else:
-        return create_and_store_vectorStore_index(nodes, model_info)
+        index = create_and_store_vectorStore_index(nodes, model_info)
+
+    set_cached_index(index)
+    return index
 
 
 def check_and_return_index(model_info):
-     if os.path.exists(persist_dir) and os.listdir(persist_dir):
-        storage_context = StorageContext.from_defaults(persist_dir=persist_dir)
-        return {"present": True, "index": load_index_from_storage(storage_context = storage_context, embed_model= model_info[0])}
-     else:
-        return {"present": False, "index": None}
+    cached_index = get_cached_index()
+    if cached_index is not None:
+        return {"present": True, "index": cached_index}
+
+    index = load_index_from_storage_if_exists(model_info)
+    if index is not None:
+        set_cached_index(index)
+        return {"present": True, "index": index}
+
+    return {"present": False, "index": None}
      
