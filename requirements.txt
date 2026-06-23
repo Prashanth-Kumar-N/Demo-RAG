@@ -12,6 +12,7 @@ transformers
 accelerate
 torch
 faiss-cpu
+rank-bm25
 pymupdf
 openai
 tiktoken

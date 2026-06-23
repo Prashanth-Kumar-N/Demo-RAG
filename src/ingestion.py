@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.constants import success, error
 from src.vectorstore import check_and_return_index, build_index
+from src.bm25_store import check_and_return_nodes_for_bm25, build_bm25_storage
 
 def loadAllDocs(files):
     from src.loader import loadDocuments
@@ -48,14 +49,18 @@ def get_vector_index(nodes, model_info):
     index = build_index(nodes, model_info)
     return index
 
+def store_nodes_to_storage_for_bm25(nodes):
+    nodes =  build_bm25_storage(nodes)["nodes"]
+
 
 def ingest(files):
 
     model_info = getEmbeddingModel()
     index_info = check_and_return_index(model_info)
-    if index_info["present"]:
+    nodes_for_bm25_info = check_and_return_nodes_for_bm25()
+    if index_info["present"] and nodes_for_bm25_info["present"]:
         print("Index already exists in storage, loading index...")
-        return {"status": success, "message": "Index loaded from storage", "index": index_info["index"]}
+        return {"status": success, "message": "Index loaded from storage", "index": index_info["index"], "nodes_for_bm25": nodes_for_bm25_info["nodes"]}
     else:
         print("No existing index found in storage, creating new index...")
         # load documents
@@ -74,23 +79,23 @@ def ingest(files):
                 # Create vector index and store
                 try:
                     index = get_vector_index(split_response["chunks"], model_info)
-                    
+                    nodes = store_nodes_to_storage_for_bm25(split_response["chunks"])
                     # Testing if ingested properly by printing out some nodes and their metadata
                     docstore = index.docstore
                     print(f"Total documents in docstore: {len(index.storage_context.docstore.docs)}")
                     #  for node_id, node in docstore.docs.items():
                     #     print(node.metadata)
-                    return {"status": success, "message": "Ingestion completed successfully, index created", "index": index}
+                    return {"status": success, "message": "Ingestion completed successfully, index created", "index": index, "nodes_for_bm25": nodes}
 
                 except Exception as e:
                     print("Error with index", e)
-                    return {"status": error, "message": f"Error creating/loading index: {str(e)}", "index": None}
+                    return {"status": error, "message": f"Error creating/loading index: {str(e)}", "index": None, "nodes_for_bm25": None}
             else:
                 print("Error splitting documents")
-                return {"status": error, "message": "Error splitting documents", "index": None}
+                return {"status": error, "message": "Error splitting documents", "index": None, "nodes_for_bm25": None}
         else:
             print("Error loading")
-            return {"status": error, "message": "Error loading documents", "index": None}
+            return {"status": error, "message": "Error loading documents", "index": None, "nodes_for_bm25": None}
 
 
 

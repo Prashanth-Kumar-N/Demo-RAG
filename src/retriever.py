@@ -1,5 +1,6 @@
 
-from llama_index.core.retrievers import VectorIndexRetriever
+from llama_index.core.retrievers import VectorIndexRetriever, QueryFusionRetriever
+from llama_index.retrievers.bm25 import BM25Retriever
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.response_synthesizers import get_response_synthesizer, ResponseMode
 from llama_index.core.vector_stores import MetadataFilters, ExactMatchFilter
@@ -9,47 +10,97 @@ from src.load_models import load_llm
 
 import time
 
-def retrieve_only(index, query: str, top_k: int = 5):
+def retrieve_only(index, nodes_for_bm25, query: str, top_k: int = 5, use_llm_fusion: bool = False):
     """
     Returns retrieved chunks only, without synthesized final answer.
     """
     rows = []
 
+
+    # Vector index retriever
     retriever = VectorIndexRetriever(index=index, similarity_top_k=top_k)
-    nodes = retriever.retrieve(query)
+    vector_nodes = retriever.retrieve(query)
+    
+    #BM25 retriever
+    bm25_retriever = BM25Retriever.from_defaults(nodes=nodes_for_bm25, similarity_top_k=top_k)
+    bm25_nodes = bm25_retriever.retrieve(query)
+    
+    ranked_nodes = []
+    
+    if use_llm_fusion: 
+        # Use fusion retriever from llamaindex
+        from src.load_models import load_llm
+        llm = load_llm()
+        fusion_retriever = QueryFusionRetriever(retrievers=[retriever, bm25_retriever], mode="reciprocal_rerank", similarity_top_k=top_k, num_queries=2, llm=llm)
+        ranked_nodes = fusion_retriever.retrieve(query)
+    else:        
+        ### This is manual recirpocal ranking fusion implementation.
+        
+        # rank using reciprocal rank fusion
+        top_nodes_ids = reciprocal_rank_fusion(vector_index_nodes=vector_nodes, bm25_nodes=bm25_nodes, top_k=top_k)   
+        
+        # Filter nodes to only include those in top_nodes_ids
+        top_vector_nodes = [node for node in vector_nodes if node.metadata.get("chunk_id") in top_nodes_ids]
+        top_bm25_nodes = [node for node in bm25_nodes if node.metadata.get("chunk_id") in top_nodes_ids]
+        ranked_nodes = top_vector_nodes + top_bm25_nodes 
+    
+    
 
-    # print(f"\nQUERY: {query}")
-    # print(f"Retrieved {len(nodes)} chunks\n")
-
-    # Node: <class 'llama_index.core.schema.NodeWithScore'>
     # A NodeWithScore is simply a retrieved chunk of text plus the relevance score assigned to it.
-
-    for i, node in enumerate(nodes, start=1):
+    for i, node in enumerate(ranked_nodes, start=1):
         rows.append({
             "rank": i,
             "score": node.score,
-            "metadata": node.metadata,
-            "response": node.text
+            "node_id": node.metadata.get("chunk_id"),
+            "file_name": node.metadata.get("file_name"),
         })
+    
+    print(ranked_nodes)
 
-    return {"nodes": nodes, "rows": rows}
- 
+    return {"nodes": ranked_nodes, "rows": rows}
 
-def classic_rag(index, query: str, top_k: int = 5, files=None):
+
+def reciprocal_rank_fusion(vector_index_nodes, bm25_nodes, top_k: int = 5, k = 60):
+    """
+    Combines the results from vector index and BM25 using Reciprocal Rank Fusion (RRF).
+    """
+    combined_scores = {}
+    
+    # Assign scores based on rank for vector index nodes
+    for rank, node in enumerate(vector_index_nodes, start=1):
+        combined_scores[node.metadata.get("chunk_id")] = 1 / (k + rank)
+    
+    # Assign scores based on rank for BM25 nodes
+    for rank, node in enumerate(bm25_nodes, start=1):
+        if node.metadata.get("chunk_id") in combined_scores:
+            combined_scores[node.metadata.get("chunk_id")] += 1 / (k + rank)
+        else:
+            combined_scores[node.metadata.get("chunk_id")] = 1 / (k + rank)
+    
+    # Sort nodes by combined score in descending order
+    sorted_nodes = sorted(combined_scores.items(), key=lambda x: x[1], reverse=True)
+    
+    # Retrieve the top_k nodes based on combined scores
+    top_nodes = [node_id for node_id, score in sorted_nodes[:top_k]]
+    print(top_nodes)
+    return top_nodes    
+
+
+def classic_rag(index, nodes_for_bm25, query: str, top_k: int = 5, files=None, use_llm_fusion: bool = False):
     """
     Retrieves relevant chunks and generates a grounded answer.
     """
     # Retrieval
     matching_files = get_matching_files(query, files)
     llm = load_llm()
-    nodes = retrieve_only(index=index, query=query, top_k=top_k * 2)["nodes"]
+    ranked_nodes = retrieve_only(index=index, nodes_for_bm25=nodes_for_bm25, query=query, top_k=top_k * 2, use_llm_fusion=use_llm_fusion)["nodes"]
 
-    # Filter
+    # Filter using matching_files if any are found in the query. This ensures that only relevant chunks from the specified files are considered for synthesis.
     if matching_files and len(matching_files) > 0:
-        filtered_nodes = [node for node in nodes if node.metadata.get("file_name").lower() in matching_files]
+        filtered_nodes = [node for node in ranked_nodes if node.metadata.get("file_name").lower() in matching_files]
     else:
-        filtered_nodes = nodes
-    
+        filtered_nodes = ranked_nodes
+
     # Synthesize response
 
     # Parameters for response_mode:
