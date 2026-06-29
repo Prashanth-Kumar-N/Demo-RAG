@@ -1,6 +1,8 @@
+from pathlib import Path
 import fitz
 from src.constants import success, error
 
+PROJECT_ROOT = Path(__file__).parent.parent
 
 def loadDocuments(filesList: list[str]) -> dict:
     docsList = {}
@@ -8,7 +10,8 @@ def loadDocuments(filesList: list[str]) -> dict:
     message = 'Documents loaded successfully'
     try:
         for file in filesList:
-            doc = fitz.open(file)
+            file_path = PROJECT_ROOT / file
+            doc = fitz.open(str(file_path))
             file_name = file.split("/")[-1]
             docs = []
             for i in range(doc.page_count):

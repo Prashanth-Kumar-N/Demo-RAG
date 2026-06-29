@@ -167,8 +167,10 @@ def split_documents(docs: List[Dict[str, Any]], chunk_size: int = 750, overlap_p
                     continue
                 
                 metadata = dict(doc_metadata)
+                chunk_id = f"{metadata.get("file_name", "unknown")}_{metadata.get("page_number", "unknown")}_chunk_{chunk_idx + 1}"
                 metadata.update({
-                    "chunk_index": chunk_idx,
+                    "chunk_id": chunk_id,
+                    "chunk_index": chunk_idx + 1,
                     "chunk_total": len(chunks),
                     "chunk_size": chunk_size
                 })
