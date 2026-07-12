@@ -3,10 +3,12 @@
 #  https://www.lancedb.com/blog/chunking-techniques-with-langchain-and-llamaindex
 
 import sys
+import logging
 from pathlib import Path
 
 # Add workspace root to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+logger = logging.getLogger(__name__)
 
 from src.constants import success, error
 from src.vectorstore import check_and_return_index, build_index
@@ -23,10 +25,10 @@ def loadAllDocs(files):
         for file in response["docs"]:
             total_docs.extend(response["docs"][file])
 
-        print("Documents loaded successfully, Total pages loaded --->", len(total_docs))
+        logger.info("Documents loaded successfully, Total pages loaded ---> %d", len(total_docs))
     else:
         status = error
-        print("Error loading documents:", response["message"])
+        logger.error("Error loading documents: %s", response["message"])
 
     return {"status": status, "message": response["message"], "docs": total_docs}
 
@@ -59,10 +61,10 @@ def ingest(files):
     index_info = check_and_return_index(model_info)
     nodes_for_bm25_info = check_and_return_nodes_for_bm25()
     if index_info["present"] and nodes_for_bm25_info["present"]:
-        print("Index already exists in storage, loading index...")
+        logger.info("Index already exists in storage, loading index...")
         return {"status": success, "message": "Index loaded from storage", "index": index_info["index"], "nodes_for_bm25": nodes_for_bm25_info["nodes"]}
     else:
-        print("No existing index found in storage, creating new index...")
+        logger.info("No existing index found in storage, creating new index...")
         # load documents
         response = loadAllDocs(files)   
 
@@ -71,30 +73,30 @@ def ingest(files):
             split_response = splitDocs(response["docs"])
             
             if split_response["status"] == success:
-                print("Documents split successfully, Total Nodes created --->", len(split_response["chunks"]))
+                logger.info("Documents split successfully, Total Nodes created ---> %d", len(split_response["chunks"]))
 
                 # Check embedding model and dimension
-                print(f"Using embedding model: {model_info[1]} with dimension {model_info[2]}")
+                logger.info(f"Using embedding model: {model_info[1]} with dimension {model_info[2]}")
 
                 # Create vector index and store
                 try:
                     index = get_vector_index(split_response["chunks"], model_info)
                     nodes = store_nodes_to_storage_for_bm25(split_response["chunks"])
                     # Testing if ingested properly by printing out some nodes and their metadata
-                    docstore = index.docstore
-                    print(f"Total documents in docstore: {len(index.storage_context.docstore.docs)}")
+                    """ docstore = index.docstore
+                    logger.info(f"Total documents in docstore: {len(index.storage_context.docstore.docs)}") """
                     #  for node_id, node in docstore.docs.items():
-                    #     print(node.metadata)
+                    #     logger.info(node.metadata)
                     return {"status": success, "message": "Ingestion completed successfully, index created", "index": index, "nodes_for_bm25": nodes}
 
                 except Exception as e:
-                    print("Error with index", e)
+                    logger.error("Error with index: %s", e)
                     return {"status": error, "message": f"Error creating/loading index: {str(e)}", "index": None, "nodes_for_bm25": None}
             else:
-                print("Error splitting documents")
+                logger.error("Error splitting documents")
                 return {"status": error, "message": "Error splitting documents", "index": None, "nodes_for_bm25": None}
         else:
-            print("Error loading")
+            logger.error("Error loading documents: %s", response.get("message", ""))
             return {"status": error, "message": "Error loading documents", "index": None, "nodes_for_bm25": None}
 
 

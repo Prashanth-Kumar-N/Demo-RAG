@@ -91,7 +91,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 # add global exception handler here, to catch all unhandled exceptions and return a JSON response with the error message, print to console as well
 @app.exception_handler(Exception)
 async def global_exception_handler(req: Request, exc: Exception):
-    print(f"Error: {exc}")
+    logger.error(f"Error: {exc}")
     return JSONResponse(status_code=500, content={"message": str(exc)})
 
 

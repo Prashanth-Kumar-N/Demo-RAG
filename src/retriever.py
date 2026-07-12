@@ -7,8 +7,10 @@ from llama_index.core.vector_stores import MetadataFilters, ExactMatchFilter
 import pandas as pd
 
 from src.load_models import load_llm
-
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 
 def retrieve_only(index, nodes_for_bm25, query: str, top_k: int = 5, use_llm_fusion: bool = False):
     """
@@ -44,7 +46,7 @@ def retrieve_only(index, nodes_for_bm25, query: str, top_k: int = 5, use_llm_fus
         top_bm25_nodes = [node for node in bm25_nodes if node.metadata.get("chunk_id") in top_nodes_ids]
         ranked_nodes = top_vector_nodes + top_bm25_nodes 
     
-    
+    logger.info("Retrieved nodes: %s", len(ranked_nodes))
 
     # A NodeWithScore is simply a retrieved chunk of text plus the relevance score assigned to it.
     for i, node in enumerate(ranked_nodes, start=1):
@@ -54,9 +56,7 @@ def retrieve_only(index, nodes_for_bm25, query: str, top_k: int = 5, use_llm_fus
             "node_id": node.metadata.get("chunk_id"),
             "file_name": node.metadata.get("file_name"),
         })
-    
-    print(ranked_nodes)
-
+    logger.info("Retrieved nodes: %s", len(ranked_nodes))
     return {"nodes": ranked_nodes, "rows": rows}
 
 
@@ -82,7 +82,7 @@ def reciprocal_rank_fusion(vector_index_nodes, bm25_nodes, top_k: int = 5, k = 6
     
     # Retrieve the top_k nodes based on combined scores
     top_nodes = [node_id for node_id, score in sorted_nodes[:top_k]]
-    print(top_nodes)
+    logger.info(top_nodes)
     return top_nodes    
 
 
@@ -101,6 +101,7 @@ def classic_rag(index, nodes_for_bm25, query: str, top_k: int = 5, files=None, u
     else:
         filtered_nodes = ranked_nodes
 
+    filtered_nodes = filtered_nodes[:top_k]  # Limit to top_k after filtering
     # Synthesize response
 
     # Parameters for response_mode:
@@ -116,11 +117,10 @@ def classic_rag(index, nodes_for_bm25, query: str, top_k: int = 5, files=None, u
     response = response_synthesizer.synthesize(nodes=filtered_nodes, query= query)
     
     # Synthesized Response
-    print(f"\nQUESTION: {query}")
-    print("\nANSWER:")
+    logger.info(f"\nQUESTION: {query}")
 
     response_text = extract_response_text(response)
-    print(response_text)
+    print(f"ANSWER: {response_text}")
 
     # Retrieved Chunks Data
     rows = []
@@ -132,8 +132,8 @@ def classic_rag(index, nodes_for_bm25, query: str, top_k: int = 5, files=None, u
             "metadata": src.metadata,
             "response": src.text[:700]
         })
-    print("\nSOURCES:")
-    print(pd.DataFrame(rows, columns=["rank", "score", "metadata", "response"]))
+    logger.info("\nSOURCES:")
+    logger.info(pd.DataFrame(rows, columns=["rank", "score", "metadata", "response"]))
     
     return {"response_text": response_text, "source_nodes": rows}
  

@@ -1,9 +1,11 @@
 
 from fastapi import APIRouter, HTTPException, Body
 from fastapi.responses import JSONResponse
+import logging
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.post("/get_response")
 async def get_response(body: dict = Body(...)) -> JSONResponse:
@@ -14,6 +16,8 @@ async def get_response(body: dict = Body(...)) -> JSONResponse:
         from src.load_models import load_embedding_model
         from src.generator import generate_response
         from src.constants import files
+        
+        logger.info(f"Query: {query}")
         
         model_info = load_embedding_model()
         index_info = check_and_return_index(model_info=model_info)

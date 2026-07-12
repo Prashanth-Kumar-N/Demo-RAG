@@ -2,7 +2,9 @@
 
 from llama_index.core.schema import TextNode
 from src.constants import success, error
+import logging
 
+logger = logging.getLogger(__name__)
 
 def is_heading(text, max_heading_length=100):
     """

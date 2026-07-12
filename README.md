@@ -10,4 +10,4 @@ curl -X POST "http://localhost:8000/get_response?query=To%lower%the%platform%usi
 
 curl -X POST http://localhost:8001/get_response \
   -H "Content-Type: application/json" \
-  -d '{"query":"To lower the platform using the auxiliary lowering switch, what should be done first?"}'
+  -d '{"query":"Explain the sequence of machine setup and operation of a JLG Lift"}'

@@ -14,6 +14,9 @@ import re
 from typing import List, Dict, Any
 from llama_index.core.schema import TextNode
 from src.constants import success, error
+import logging
+
+logger = logging.getLogger(__name__) 
 
 
 def is_heading(line: str) -> bool:
@@ -186,11 +189,11 @@ def split_documents(docs: List[Dict[str, Any]], chunk_size: int = 750, overlap_p
         }
     
     except Exception as e:
-        print(f"Error splitting documents: {e}")
+        logger.error(f"Error splitting documents: {e}")
         import traceback
         traceback.print_exc()
         return {
-            "status": error,
+            "status": "error",
             "message": f"Error splitting documents: {str(e)}",
             "chunks": None
         }

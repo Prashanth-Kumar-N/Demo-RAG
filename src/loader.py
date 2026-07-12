@@ -1,8 +1,10 @@
 from pathlib import Path
 import fitz
+import logging
 from src.constants import success, error
 
 PROJECT_ROOT = Path(__file__).parent.parent
+logger = logging.getLogger(__name__)
 
 def loadDocuments(filesList: list[str]) -> dict:
     docsList = {}
@@ -21,7 +23,7 @@ def loadDocuments(filesList: list[str]) -> dict:
                     docs.append({"page_content": text, "metadata": {"file_name": file_name, "page_number": i + 1}})
             docsList[file_name] = docs
     except Exception as e:
-        print(f"Error loading documents: {e}")
+        logger.error(f"Error loading documents: {e}")
         status = error
         message = str(e)
         docsList = None

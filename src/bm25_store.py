@@ -1,6 +1,7 @@
 import os
 import json
 import pickle
+import logging
 from pathlib import Path
 from typing import List, Dict, Any
 from rank_bm25 import BM25Okapi
@@ -9,6 +10,7 @@ from llama_index.core.schema import TextNode
 PROJECT_ROOT = Path(__file__).parent.parent
 persist_dir = f"{PROJECT_ROOT}/nodes_for_bm25"
 _cached_nodes_for_bm25 = None
+logger = logging.getLogger(__name__)
 
 
 def get_cached_nodes_for_bm25():
@@ -44,7 +46,7 @@ def store_nodes_for_bm25(chunks: List[TextNode]) -> None:
     with open(bm25_path, "wb") as f:
         pickle.dump(chunks, f)
     
-    print(f"Nodes for BM25 persisted to {persist_dir}")
+    logger.info(f"Nodes for BM25 persisted to {persist_dir}")
 
 
 def load_nodes_for_bm25_from_storage() -> Dict[str, Any] | None:
@@ -64,10 +66,10 @@ def load_nodes_for_bm25_from_storage() -> Dict[str, Any] | None:
         # Load Nodes for BM25
         with open(bm25_path, "rb") as f:
             nodes_for_bm25 = pickle.load(f)        
-        print(f"Nodes for BM25 loaded from {persist_dir}")        
+        logger.info(f"Nodes for BM25 loaded from {persist_dir}")        
         return nodes_for_bm25 
     except Exception as e:
-        print(f"Error loading BM25 index: {e}")
+        logger.error(f"Error loading BM25 index: {e}")
         return None
 
 
@@ -89,13 +91,13 @@ def build_bm25_storage(chunks: List[TextNode]) -> Dict[str, Any]:
                 "nodes": chunks
             }
         except Exception as e:
-            print(f"Error creating BM25 index: {e}")
+            logger.error(f"Error creating BM25 index: {e}")
             return {
                 "present": False,
                 "nodes": None
             }
     else:
-        print("No chunks provided to build BM25 index")
+        logger.info("No chunks provided to build BM25 index")
         return {
             "present": False,
             "nodes": None
@@ -119,7 +121,7 @@ def check_and_return_nodes_for_bm25(chunks: List[TextNode] = None) -> Dict[str, 
     cached_nodes_for_bm25 = get_cached_nodes_for_bm25()
     
     if cached_nodes_for_bm25 is not None:
-        print("Using cached BM25 index")
+        logger.info("Using cached BM25 index")
         return {
             "present": True,
             "nodes": cached_nodes_for_bm25
